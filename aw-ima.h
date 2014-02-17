@@ -52,6 +52,12 @@
 # define _ima_packed
 #endif
 
+#if _MSC_VER
+# define _ima_restrict __restrict
+#else
+# define _ima_restrict __restrict__
+#endif
+
 #if __GNUC__
 # define _ima_likely(x) __builtin_expect(!!(x), 1)
 # define _ima_unlikely(x) __builtin_expect(!!(x), 0)
@@ -137,9 +143,9 @@ static int ima_step_table[89] = {
 };
 
 static _ima_alwaysinline int ima_clamp_index(int index) {
-	if (index < 0)
+	if (_ima_unlikely(index < 0))
 		index = 0;
-	else if (index > 88)
+	else if (_ima_unlikely(index > 88))
 		index = 88;
 	return index;
 }
@@ -169,7 +175,7 @@ static _ima_alwaysinline int ima_clamp_predict(int predict) {
 	} while (0)
 
 static _ima_alwaysinline void ima_decode_block(
-		int16_t *_restrict output, unsigned channel_count,
+		int16_t *_ima_restrict output, unsigned channel_count,
 		const struct ima_block *block, unsigned decode_count) {
 	int index, predict, step, diff, nibble, sign;
 	unsigned i;
