@@ -71,8 +71,8 @@ extern "C" {
 #endif
 
 struct ima_info {
-	const void *data;
-	size_t size;
+	const void *blocks;
+	uint64_t size;
 	double sample_rate;
 	uint64_t frame_count;
 	unsigned channel_count;
@@ -193,31 +193,29 @@ static _ima_alwaysinline void ima_decode_block(
 		ima_decode_sample(block->data[decode_count >> 1] & 0xf);
 }
 
-static size_t ima_decode(
-		int16_t **output, uint64_t *frame_offset, unsigned frame_count,
+static void ima_decode(
+		int16_t *_ima_restrict output, uint64_t frame_offset, unsigned frame_count,
 		const void *data, unsigned channel_count) {
 	const struct ima_block *blocks;
-	int16_t *ptr = *output;
-	uint64_t offset = *frame_offset;
 	unsigned i, remain_count, decode_count;
 
 	remain_count = frame_count;
 
 	blocks = data;
-	blocks += offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
+	blocks += frame_offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
 
 	while (remain_count > 0) {
-		decode_count = remain_count < IMA_BLOCK_DATA_SIZE * 2 ? remain_count : IMA_BLOCK_DATA_SIZE * 2;
+		if (_ima_unlikely(remain_count < IMA_BLOCK_DATA_SIZE * 2))
+			decode_count = remain_count;
+		else
+			decode_count = IMA_BLOCK_DATA_SIZE * 2;
 
 		for (i = 0; i < channel_count; ++i)
-			ima_decode_block(ptr + i, channel_count, blocks++, decode_count);
+			ima_decode_block(output + i, channel_count, blocks++, decode_count);
 
 		remain_count -= decode_count;
-		ptr += decode_count * channel_count;
+		output += decode_count * channel_count;
 	}
-
-	*frame_offset = offset + frame_count;
-	return frame_count * (channel_count * sizeof (int16_t));
 }
 
 static int ima_parse(struct ima_info *info, const void *data) {
@@ -255,7 +253,7 @@ static int ima_parse(struct ima_info *info, const void *data) {
 	if (be32toh(desc->format_id) != 'ima4')
 		return -3;
 
-	info->data = blocks;
+	info->blocks = blocks;
 	info->size = chunk_size;
 	info->frame_count = be64toh(pakt->frame_count);
 	info->channel_count = be32toh(desc->channels_per_frame);
