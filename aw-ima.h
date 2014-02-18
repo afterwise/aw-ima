@@ -78,6 +78,16 @@ struct ima_info {
 	unsigned channel_count;
 };
 
+struct ima_channel_state {
+	int32_t index;
+	int32_t predict;
+};
+
+struct ima_decode_state {
+	uint64_t offset;
+	struct ima_channel_state channels[8];
+};
+
 #if _MSC_VER
 # pragma pack(push, 1)
 #endif
@@ -161,13 +171,11 @@ static _ima_alwaysinline int ima_clamp_predict(int predict) {
 #define ima_decode_sample(init_nibble) do { \
 		nibble = (init_nibble); \
 		index = ima_clamp_index(index + ima_index_table[nibble]); \
-		sign = nibble & 8; \
-		nibble = nibble & 7; \
 		diff = step >> 3; \
 		if (nibble & 4) diff += step; \
 		if (nibble & 2) diff += step >> 1; \
 		if (nibble & 1) diff += step >> 2; \
-		if (sign) predict -= diff; else predict += diff; \
+		if (nibble & 8) predict -= diff; else predict += diff; \
 		step = ima_step_table[index]; \
 		predict = ima_clamp_predict(predict); \
 		*output = predict; \
@@ -176,12 +184,22 @@ static _ima_alwaysinline int ima_clamp_predict(int predict) {
 
 static _ima_alwaysinline void ima_decode_block(
 		int16_t *_ima_restrict output, unsigned channel_count,
-		const struct ima_block *block, unsigned decode_count) {
-	int index, predict, step, diff, nibble, sign;
+		const struct ima_block *block, unsigned decode_count,
+		struct ima_channel_state *state) {
+	int index, predict, step, diff, nibble;
 	unsigned i;
 
-	index = ima_clamp_index(be16toh(block->preamble) & 0x7f);
-	predict = ima_clamp_predict((int16_t) be16toh(block->preamble) & ~0x7f);
+	index = be16toh(block->preamble) & 0x7f;
+	predict = (int16_t) be16toh(block->preamble) & ~0x7f;
+
+	if (index == state->index) {
+		if ((diff = predict - state->predict) < 0)
+			diff = -diff;
+
+		if (diff <= 0x7f)
+			predict = state->predict;
+	}
+
 	step = ima_step_table[index];
 
 	for (i = 0; i < (decode_count >> 1); ++i) {
@@ -191,18 +209,22 @@ static _ima_alwaysinline void ima_decode_block(
 
 	if (_ima_unlikely((decode_count & 1) != 0))
 		ima_decode_sample(block->data[decode_count >> 1] & 0xf);
+
+	state->index = index;
+	state->predict = predict;
 }
 
 static void ima_decode(
-		int16_t *_ima_restrict output, uint64_t frame_offset, unsigned frame_count,
-		const void *data, unsigned channel_count) {
+		int16_t *_ima_restrict output, unsigned frame_count,
+		const void *data, unsigned channel_count,
+		struct ima_decode_state *state) {
 	const struct ima_block *blocks;
 	unsigned i, remain_count, decode_count;
 
 	remain_count = frame_count;
 
 	blocks = data;
-	blocks += frame_offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
+	blocks += state->offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
 
 	while (remain_count > 0) {
 		if (_ima_unlikely(remain_count < IMA_BLOCK_DATA_SIZE * 2))
@@ -211,11 +233,19 @@ static void ima_decode(
 			decode_count = IMA_BLOCK_DATA_SIZE * 2;
 
 		for (i = 0; i < channel_count; ++i)
-			ima_decode_block(output + i, channel_count, blocks++, decode_count);
+			ima_decode_block(
+				output + i, channel_count, blocks++, decode_count,
+				&state->channels[i]);
 
 		remain_count -= decode_count;
 		output += decode_count * channel_count;
 	}
+
+	state->offset += frame_count;
+}
+
+static _ima_alwaysinline void ima_init(struct ima_decode_state *state) {
+	memset(state, 0, sizeof (struct ima_decode_state));
 }
 
 static int ima_parse(struct ima_info *info, const void *data) {
