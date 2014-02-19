@@ -70,6 +70,14 @@
 extern "C" {
 #endif
 
+#ifdef IMA_FLOAT_OUTPUT
+# define IMA_OUTPUT_SAMPLE(x) ((float) (x) * 0.0000305185f) /* 1.0 / 32767.0 */
+typedef float ima_output_t;
+#else
+# define IMA_OUTPUT_SAMPLE(x) (x)
+typedef int16_t ima_output_t;
+#endif
+
 struct ima_info {
 	const void *blocks;
 	uint64_t size;
@@ -178,12 +186,12 @@ static _ima_alwaysinline int ima_clamp_predict(int predict) {
 		if (nibble & 8) predict -= diff; else predict += diff; \
 		step = ima_step_table[index]; \
 		predict = ima_clamp_predict(predict); \
-		*output = predict; \
+		*output = IMA_OUTPUT_SAMPLE(predict); \
 		output += channel_count; \
 	} while (0)
 
 static _ima_alwaysinline void ima_decode_block(
-		int16_t *_ima_restrict output, unsigned channel_count,
+		ima_output_t *_ima_restrict output, unsigned channel_count,
 		const struct ima_block *block, unsigned decode_count,
 		struct ima_channel_state *state) {
 	int index, predict, step, diff, nibble;
@@ -215,7 +223,7 @@ static _ima_alwaysinline void ima_decode_block(
 }
 
 static void ima_decode(
-		int16_t *_ima_restrict output, unsigned frame_count,
+		ima_output_t *_ima_restrict output, unsigned frame_count,
 		const void *data, unsigned channel_count,
 		struct ima_decode_state *state) {
 	const struct ima_block *blocks;
