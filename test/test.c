@@ -1,4 +1,5 @@
 
+#include <assert.h>
 #include <fcntl.h>
 #include <OpenAL/al.h>
 #include <OpenAL/alc.h>
@@ -8,36 +9,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "aw-ima.h"
-
-#if _MSC_VER
-# pragma pack(push, 1)
-#endif
-
-struct _ima_packed wav_chunk {
-        uint32_t id;
-        uint32_t size;
-        uint32_t format;
-};
-
-struct _ima_packed wav_format_chunk {
-        uint32_t id;
-        uint32_t size;
-        uint16_t format;
-        uint16_t channel_count;
-        uint32_t sample_rate;
-        uint32_t bit_rate;
-        uint16_t block_align;
-        uint16_t bits_per_sample;
-};
-
-struct _ima_packed wav_data_chunk {
-        uint32_t id;
-        uint32_t size;
-};
-
-#if _MSC_VER
-# pragma pack(pop)
-#endif
+#include "aw-wav.h"
 
 static struct ima_info ima_info;
 static struct ima_decode_state ima_state;
@@ -159,10 +131,8 @@ static void play() {
 }
 
 int main(int argc, char *argv[]) {
-	struct wav_chunk chunk;
-	struct wav_format_chunk format;
-	struct wav_data_chunk data;
-
+	uint32_t wav_buf[WAV_HEADER_SIZE / 4 + 1];
+	struct wav_info wav_info;
 	off_t file_end, data_off;
 
 	char *caf = NULL;
@@ -186,10 +156,9 @@ int main(int argc, char *argv[]) {
 		if ((wav_fd = open(wav, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0)
 			perror("Open failed");
 		else {
-			write_all(wav_fd, &chunk, sizeof chunk);
-			write_all(wav_fd, &format, sizeof format);
-			write_all(wav_fd, &data, sizeof data);
+			write_all(wav_fd, wav_buf, WAV_HEADER_SIZE);
 			data_off = lseek(wav_fd, 0, SEEK_CUR);
+			assert(data_off == WAV_HEADER_SIZE);
 		}
 	}
 
@@ -197,27 +166,18 @@ int main(int argc, char *argv[]) {
 
 	if (wav_fd > 0) {
 		file_end = lseek(wav_fd, 0, SEEK_CUR);
-
-		chunk.id = htobe32('RIFF');
-		chunk.size = htole32((unsigned) file_end - 8);
-		chunk.format = htobe32('WAVE');
-
-		format.id = htobe32('fmt ');
-		format.size = htole32(16);
-		format.format = htole32(1);
-		format.channel_count = htole32(ima_info.channel_count);
-		format.sample_rate = htole32((int) ima_info.sample_rate);
-		format.bit_rate = htole32((int) ima_info.sample_rate * ima_info.channel_count * sizeof (int16_t));
-		format.block_align = htole32(ima_info.channel_count * sizeof (int16_t));
-		format.bits_per_sample = 16;
-
-		data.id = htobe32('data');
-		data.size = file_end - data_off;
-
 		lseek(wav_fd, 0, SEEK_SET);
-		write_all(wav_fd, &chunk, sizeof chunk);
-		write_all(wav_fd, &format, sizeof format);
-		write_all(wav_fd, &data, sizeof data);
+
+		wav_info.blocks = NULL;
+		wav_info.size = file_end - data_off;
+		wav_info.sample_rate = ima_info.sample_rate;
+		wav_info.frame_count = ima_info.frame_count;
+		wav_info.sample_format = WAV_FORMAT_INT16;
+		wav_info.channel_count = ima_info.channel_count;
+
+		wav_write(wav_buf, &wav_info);
+		write_all(wav_fd, wav_buf, WAV_HEADER_SIZE);
+
 		close(wav_fd);
 	}
 
