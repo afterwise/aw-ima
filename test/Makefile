@@ -1,9 +1,11 @@
 
+export CFLAGS += -Wall -Wextra
+
 test: test.o
 	clang -framework OpenAL -o $@ $^
 
 %.o: %.c ../aw-ima.h aw-wav/aw-wav.h
-	clang -I.. -Iaw-wav -c $< -o $@
+	clang $(CFLAGS) -I.. -Iaw-wav -c $< -o $@
 
 aw-wav/aw-wav.h:
 	git clone git@github.com:afterwise/aw-wav.git && \

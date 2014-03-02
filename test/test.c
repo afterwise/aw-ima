@@ -55,7 +55,6 @@ int wav_fd;
 static void queue(unsigned src, unsigned buf) {
 	unsigned frame_count = BUFFER_SIZE / (ima_info.channel_count * sizeof (int16_t));
 	size_t size;
-	ssize_t err;
 
 	if (frame_count > ima_info.frame_count - ima_state.offset)
 		frame_count = ima_info.frame_count - ima_state.offset;
