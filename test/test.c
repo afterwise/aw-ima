@@ -1,56 +1,40 @@
 
+#include "aw-ima.h"
+#include "aw-fs.h"
+#include "aw-wav.h"
+
+#if __APPLE__
+# include <OpenAL/al.h>
+# include <OpenAL/alc.h>
+#else
+# include <AL/al.h>
+# include <AL/alc.h>
+#endif
+
 #include <assert.h>
-#include <fcntl.h>
-#include <OpenAL/al.h>
-#include <OpenAL/alc.h>
-#include <sys/mman.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
-#include "aw-ima.h"
-#include "aw-wav.h"
 
 static struct ima_info ima_info;
 static struct ima_decode_state ima_state;
 
 static int load(const char *path) {
-	struct stat stat;
+	struct fs_map map;
 	void *ptr;
-	int fd;
 
-	if ((fd = open(path, O_RDONLY)) < 0)
-		return perror("Open failed"), -1;
-
-	if (fstat(fd, &stat) < 0)
-		return close(fd), perror("Stat failed"), -1;
-
-	if ((ptr = mmap(NULL, stat.st_size, PROT_READ, MAP_FILE | MAP_PRIVATE, fd, 0)) == NULL)
-		return close(fd), perror("Mmap failed"), -1;
-
-	close(fd);
+	ptr = fs_map(&map, path);
 
 	if (ima_parse(&ima_info, ptr) < 0)
-		return close(fd), fputs("Parse failed\n", stderr), -1;
+		return fputs("Parse failed\n", stderr), -1;
 
 	return 0;
-}
-
-void write_all(int fd, const void *p, size_t n) {
-	ssize_t err;
-
-	do {
-		if ((err = write(fd, p, n)) < 0) {
-			perror("Write failed");
-			break;
-		}
-	} while ((n -= err) > 0);
 }
 
 #define BUFFER_SIZE (16384)
 static int16_t buffer[BUFFER_SIZE / sizeof (int16_t)];
 
-int wav_fd;
+intptr_t wav_fd;
 
 static void queue(unsigned src, unsigned buf) {
 	unsigned frame_count = BUFFER_SIZE / (ima_info.channel_count * sizeof (int16_t));
@@ -70,7 +54,7 @@ static void queue(unsigned src, unsigned buf) {
 		alSourceQueueBuffers(src, 1, &buf);
 
 		if (wav_fd > 0)
-			write_all(wav_fd, buffer, size);
+			fs_write(wav_fd, buffer, size);
 	}
 }
 
@@ -152,11 +136,11 @@ int main(int argc, char *argv[]) {
 		return 1;
 
 	if (wav != NULL) {
-		if ((wav_fd = open(wav, O_CREAT | O_TRUNC | O_WRONLY, 0644)) < 0)
+		if ((wav_fd = fs_open(wav, FS_CREAT | FS_TRUNC | FS_WRONLY)) < 0)
 			perror("Open failed");
 		else {
-			write_all(wav_fd, wav_buf, WAV_HEADER_SIZE);
-			data_off = lseek(wav_fd, 0, SEEK_CUR);
+			fs_write(wav_fd, wav_buf, WAV_HEADER_SIZE);
+			data_off = fs_seek(wav_fd, 0, FS_SEEK_CUR);
 			assert(data_off == WAV_HEADER_SIZE);
 		}
 	}
@@ -164,8 +148,8 @@ int main(int argc, char *argv[]) {
 	play();
 
 	if (wav_fd > 0) {
-		file_end = lseek(wav_fd, 0, SEEK_CUR);
-		lseek(wav_fd, 0, SEEK_SET);
+		file_end = fs_seek(wav_fd, 0, FS_SEEK_CUR);
+		fs_seek(wav_fd, 0, FS_SEEK_SET);
 
 		wav_info.blocks = NULL;
 		wav_info.size = file_end - data_off;
@@ -175,9 +159,9 @@ int main(int argc, char *argv[]) {
 		wav_info.channel_count = ima_info.channel_count;
 
 		wav_write(wav_buf, &wav_info);
-		write_all(wav_fd, wav_buf, WAV_HEADER_SIZE);
+		fs_write(wav_fd, wav_buf, WAV_HEADER_SIZE);
 
-		close(wav_fd);
+		fs_close(wav_fd);
 	}
 
 	return 0;

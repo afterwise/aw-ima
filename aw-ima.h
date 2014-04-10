@@ -24,28 +24,11 @@
 #ifndef AW_IMA_H
 #define AW_IMA_H
 
-#include <stdint.h>
 #include <string.h>
-#if __linux__
-# include <endian.h>
-#elif __APPLE__
-# include <libkern/OSByteOrder.h>
-# define htobe16 OSSwapHostToBigInt16
-# define htole16 OSSwapHostToLittleInt16
-# define be16toh OSSwapBigToHostInt16
-# define le16toh OSSwapLittleToHostInt16
-# define htobe32 OSSwapHostToBigInt32
-# define htole32 OSSwapHostToLittleInt32
-# define be32toh OSSwapBigToHostInt32
-# define le32toh OSSwapLittleToHostInt32
-# define htobe64 OSSwapHostToBigInt64
-# define htole64 OSSwapHostToLittleInt64
-# define be64toh OSSwapBigToHostInt64
-# define le64toh OSSwapLittleToHostInt64
-#endif
+#include "aw-endian.h"
 
 #if __GNUC__
-# define _ima_alwaysinline inline __attribute__((always_inline, nodebug))
+# define _ima_alwaysinline inline __attribute__((always_inline))
 # define _ima_packed __attribute__((packed))
 #elif _MSC_VER
 # define _ima_alwaysinline __forceinline
@@ -66,33 +49,37 @@
 # define _ima_unlikely(x) (x)
 #endif
 
+#define ima_fourcc(a,b,c,d) \
+        ((u32) (u8) (d) | ((u32) (u8)(c) << 8) | \
+        ((u32) (u8) (b) << 16) | ((u32) (u8) (a) << 24))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifdef IMA_FLOAT_OUTPUT
-# define IMA_OUTPUT_SAMPLE(x) ((float) (x) * 0.0000305185f) /* 1.0 / 32767.0 */
-typedef float ima_output_t;
+# define IMA_OUTPUT_SAMPLE(x) ((f32) (x) * 0.0000305185f) /* 1.0 / 32767.0 */
+typedef f32 ima_output_t;
 #else
 # define IMA_OUTPUT_SAMPLE(x) (x)
-typedef int16_t ima_output_t;
+typedef s16 ima_output_t;
 #endif
 
 struct ima_info {
 	const void *blocks;
-	uint64_t size;
-	double sample_rate;
-	uint64_t frame_count;
-	unsigned channel_count;
+	u64 size;
+	f64 sample_rate;
+	u64 frame_count;
+	u32 channel_count;
 };
 
 struct ima_channel_state {
-	int32_t index;
-	int32_t predict;
+	s32 index;
+	s32 predict;
 };
 
 struct ima_decode_state {
-	uint64_t offset;
+	u64 offset;
 	struct ima_channel_state channels[8];
 };
 
@@ -101,42 +88,42 @@ struct ima_decode_state {
 #endif
 
 struct _ima_packed caf_header {
-	uint32_t type;
-	uint16_t version;
-	uint16_t flags;
+	u32 type;
+	u16 version;
+	u16 flags;
 };
 
 struct _ima_packed caf_chunk {
-	uint32_t type;
-	int64_t size;
+	u32 type;
+	s64 size;
 };
 
 struct _ima_packed caf_audio_description {
-	double sample_rate;
-	uint32_t format_id;
-	uint32_t format_flags;
-	uint32_t bytes_per_packet;
-	uint32_t frames_per_packet;
-	uint32_t channels_per_frame;
-	uint32_t bits_per_channel;
+	f64 sample_rate;
+	u32 format_id;
+	u32 format_flags;
+	u32 bytes_per_packet;
+	u32 frames_per_packet;
+	u32 channels_per_frame;
+	u32 bits_per_channel;
 };
 
 struct _ima_packed caf_packet_table {
-	int64_t packet_count;
-	int64_t frame_count;
-	int32_t priming_frames;
-	int32_t remainder_frames;
+	s64 packet_count;
+	s64 frame_count;
+	s32 priming_frames;
+	s32 remainder_frames;
 };
 
 struct _ima_packed caf_data {
-	uint32_t edit_count;
+	u32 edit_count;
 };
 
 #define IMA_BLOCK_DATA_SIZE (32)
 
 struct _ima_packed ima_block {
-	uint16_t preamble;
-	uint8_t data[IMA_BLOCK_DATA_SIZE];
+	u16 preamble;
+	u8 data[IMA_BLOCK_DATA_SIZE];
 };
 
 #if _MSC_VER
@@ -197,8 +184,8 @@ static _ima_alwaysinline void ima_decode_block(
 	int index, predict, step, diff, nibble;
 	unsigned i;
 
-	index = be16toh(block->preamble) & 0x7f;
-	predict = (int16_t) be16toh(block->preamble) & ~0x7f;
+	index = btoh16(block->preamble) & 0x7f;
+	predict = (s16) btoh16(block->preamble) & ~0x7f;
 
 	if (index == state->index) {
 		if ((diff = predict - state->predict) < 0)
@@ -262,41 +249,41 @@ static int ima_parse(struct ima_info *info, const void *data) {
 	const struct caf_audio_description *desc;
 	const struct caf_packet_table *pakt;
 	const struct ima_block *blocks;
-	union { double f; uint64_t u; } conv64;
-	int64_t chunk_size;
+	union { f64 f; u64 u; } conv64;
+	s64 chunk_size;
 	unsigned chunk_type;
 
-	if (be32toh(header->type) != 'caff')
+	if (btoh32(header->type) != ima_fourcc('c', 'a', 'f', 'f'))
 		return -1;
 
-	if (be16toh(header->version) != 1)
+	if (btoh16(header->version) != 1)
 		return -2;
 
 	for (;;) {
-		chunk_type = be32toh(chunk->type);
-		chunk_size = be64toh(chunk->size);
+		chunk_type = btoh32(chunk->type);
+		chunk_size = btoh64(chunk->size);
 
-		if (chunk_type == 'desc')
+		if (chunk_type == ima_fourcc('d', 'e', 's', 'c'))
 			desc = (const void *) &chunk[1];
-		else if (chunk_type == 'pakt')
+		else if (chunk_type == ima_fourcc('p', 'a', 'k', 't'))
 			pakt = (const void *) &chunk[1];
-		else if (chunk_type == 'data') {
+		else if (chunk_type == ima_fourcc('d', 'a', 't', 'a')) {
 			blocks = (const void *) &((const struct caf_data *) &chunk[1])[1];
 			break;
 		}
 
-		chunk = (const void *) ((const uint8_t *) &chunk[1] + chunk_size);
+		chunk = (const void *) ((const u8 *) &chunk[1] + chunk_size);
 	}
 
-	if (be32toh(desc->format_id) != 'ima4')
+	if (btoh32(desc->format_id) != ima_fourcc('i', 'm', 'a', '4'))
 		return -3;
 
 	info->blocks = blocks;
 	info->size = chunk_size;
-	info->frame_count = be64toh(pakt->frame_count);
-	info->channel_count = be32toh(desc->channels_per_frame);
+	info->frame_count = btoh64(pakt->frame_count);
+	info->channel_count = btoh32(desc->channels_per_frame);
 
-	conv64.u = be64toh(*(const uint64_t *) &desc->sample_rate);
+	conv64.u = btoh64(*(const u64 *) &desc->sample_rate);
 	info->sample_rate = conv64.f;
 
 	return 0;
