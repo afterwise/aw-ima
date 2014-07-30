@@ -163,10 +163,6 @@ static void ima_decode(
 	state->offset += frame_count;
 }
 
-static _ima_alwaysinline void ima_init(struct ima_decode_state *state) {
-	memset(state, 0, sizeof (struct ima_decode_state));
-}
-
 static int ima_parse(struct ima_info *info, const void *data) {
 	const struct caf_header *header = data;
 	const struct caf_chunk *chunk = (const void *) &header[1];
