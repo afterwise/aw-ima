@@ -26,6 +26,12 @@
 
 #include "aw-imatypes.h"
 
+#if __GNUC__
+# define _ima_alwaysinline inline __attribute__((always_inline))
+#elif _MSC_VER
+# define _ima_alwaysinline __forceinline
+#endif
+
 #if _MSC_VER
 # define _ima_restrict __restrict
 #else
