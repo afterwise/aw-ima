@@ -58,7 +58,6 @@ struct ima_channel_state {
 };
 
 struct ima_decode_state {
-	u64 offset;
 	struct ima_channel_state channels[8];
 };
 

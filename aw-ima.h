@@ -134,7 +134,7 @@ static _ima_alwaysinline void ima_decode_block(
 }
 
 static void ima_decode(
-		ima_output_t *_ima_restrict output, unsigned frame_count,
+		ima_output_t *_ima_restrict output, u64 frame_offset, unsigned frame_count,
 		const void *data, unsigned channel_count,
 		struct ima_decode_state *state) {
 	const struct ima_block *blocks;
@@ -143,7 +143,7 @@ static void ima_decode(
 	remain_count = frame_count;
 
 	blocks = data;
-	blocks += state->offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
+	blocks += frame_offset / (IMA_BLOCK_DATA_SIZE * 2) * channel_count;
 
 	while (remain_count > 0) {
 		if (_ima_unlikely(remain_count < IMA_BLOCK_DATA_SIZE * 2))
@@ -159,8 +159,6 @@ static void ima_decode(
 		remain_count -= decode_count;
 		output += decode_count * channel_count;
 	}
-
-	state->offset += frame_count;
 }
 
 static int ima_parse(struct ima_info *info, const void *data) {
