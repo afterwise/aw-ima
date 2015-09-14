@@ -1,7 +1,7 @@
 
-export CFLAGS += -Wall -Wextra -Itest/aw-bytes
+export CFLAGS += -Wall -Wextra -I../aw-bytes
 
-test: test.o aw-fs/libaw-fs.a
+test: test.o aw-fs/libaw-fs.a aw-wav/libaw-wav.a
 	$(CC) $(LDFLAGS) -framework OpenAL -o $@ $^
 
 %.o: %.c ../aw-ima.h aw-bytes/aw-types.h aw-fs/aw-fs.h aw-wav/aw-wav.h
@@ -9,6 +9,9 @@ test: test.o aw-fs/libaw-fs.a
 
 aw-fs/libaw-fs.a:
 	$(MAKE) -Caw-fs
+
+aw-wav/libaw-wav.a:
+	$(MAKE) -Caw-wav
 
 aw-bytes/aw-types.h:
 	git clone git@github.com:afterwise/aw-bytes.git && \

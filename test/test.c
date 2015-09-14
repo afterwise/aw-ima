@@ -22,17 +22,19 @@ static struct ima_decode_state ima_state;
 static int load(const char *path) {
 	struct fs_map map;
 	void *ptr;
+	int err;
 
 	ptr = fs_map(&map, path);
 
-	if (ima_parse(&ima_info, ptr) < 0)
-		return fputs("Parse failed\n", stderr), -1;
+	if ((err = ima_parse(&ima_info, ptr)) < 0)
+		return fprintf(stderr, "Parse failed: %d\n", err), -1;
 
 	return 0;
 }
 
 #define BUFFER_SIZE (16384)
 static int16_t buffer[BUFFER_SIZE / sizeof (int16_t)];
+static int64_t offset;
 
 intptr_t wav_fd;
 
@@ -40,10 +42,11 @@ static void queue(unsigned src, unsigned buf) {
 	unsigned frame_count = BUFFER_SIZE / (ima_info.channel_count * sizeof (int16_t));
 	size_t size;
 
-	if (frame_count > ima_info.frame_count - ima_state.offset)
-		frame_count = ima_info.frame_count - ima_state.offset;
+	if (frame_count > ima_info.frame_count - offset)
+		frame_count = ima_info.frame_count - offset;
 
-	ima_decode(buffer, frame_count, ima_info.blocks, ima_info.channel_count, &ima_state);
+	ima_decode(buffer, offset, frame_count, ima_info.blocks, ima_info.channel_count, &ima_state);
+	offset += frame_count;
 	size = frame_count * ima_info.channel_count * sizeof (int16_t);
 
 	if (size > 0) {

@@ -1,4 +1,0 @@
-
-REQUIRES = \
-	../aw-bytes 
-
