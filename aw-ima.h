@@ -28,8 +28,10 @@
 
 #if __GNUC__
 # define _ima_alwaysinline inline __attribute__((always_inline))
+# define _ima_unused __attribute__((__unused__))
 #elif _MSC_VER
 # define _ima_alwaysinline __forceinline
+# define _ima_unused
 #endif
 
 #if __GNUC__
@@ -294,6 +296,10 @@ static _ima_alwaysinline void ima_decode_block(
 static void ima_decode(
 		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, unsigned frame_count,
 		const void *data, unsigned channel_count,
+		struct ima_decode_state *state) _ima_unused;
+static void ima_decode(
+		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, unsigned frame_count,
+		const void *data, unsigned channel_count,
 		struct ima_decode_state *state) {
 	const struct ima_block *blocks;
 	unsigned i, remain_count, decode_count;
@@ -319,6 +325,7 @@ static void ima_decode(
 	}
 }
 
+static int ima_parse(struct ima_info *info, const void *data) _ima_unused;
 static int ima_parse(struct ima_info *info, const void *data) {
 	const struct caf_header *header = data;
 	const struct caf_chunk *chunk = (const void *) &header[1];
