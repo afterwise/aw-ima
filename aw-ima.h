@@ -1,6 +1,6 @@
 
 /*
-   Copyright (c) 2014 Malte Hildingsson, malte (at) afterwi.se
+   Copyright (c) 2014-2021 Malte Hildingsson, malte (at) afterwi.se
 
    Permission is hereby granted, free of charge, to any person obtaining a copy
    of this software and associated documentation files (the "Software"), to deal
@@ -263,10 +263,10 @@ static _ima_alwaysinline int ima_clamp_predict(int predict) {
 
 static _ima_alwaysinline void ima_decode_block(
 		ima_output_t *_ima_restrict output, unsigned channel_count,
-		const struct ima_block *block, unsigned decode_count,
+		const struct ima_block *block, ima_u64_t decode_count,
 		struct ima_channel_state *state) {
 	int index, predict, step, diff, nibble;
-	unsigned i;
+	ima_u64_t i;
 
 	index = ima_btoh16(block->preamble) & 0x7f;
 	predict = (ima_s16_t) ima_btoh16(block->preamble) & ~0x7f;
@@ -294,15 +294,16 @@ static _ima_alwaysinline void ima_decode_block(
 }
 
 static void ima_decode(
-		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, unsigned frame_count,
+		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, ima_u64_t frame_count,
 		const void *data, unsigned channel_count,
 		struct ima_decode_state *state) _ima_unused;
 static void ima_decode(
-		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, unsigned frame_count,
+		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, ima_u64_t frame_count,
 		const void *data, unsigned channel_count,
 		struct ima_decode_state *state) {
 	const struct ima_block *blocks;
-	unsigned i, remain_count, decode_count;
+	ima_u64_t remain_count, decode_count;
+	unsigned i;
 
 	remain_count = frame_count;
 
@@ -329,9 +330,9 @@ static int ima_parse(struct ima_info *info, const void *data) _ima_unused;
 static int ima_parse(struct ima_info *info, const void *data) {
 	const struct caf_header *header = (const struct caf_header *) data;
 	const struct caf_chunk *chunk = (const struct caf_chunk *) &header[1];
-	const struct caf_audio_description *desc;
-	const struct caf_packet_table *pakt;
-	const struct ima_block *blocks;
+	const struct caf_audio_description *desc = NULL;
+	const struct caf_packet_table *pakt = NULL;
+	const struct ima_block *blocks = NULL;
 	union { ima_f64_t f; ima_u64_t u; } conv64;
 	ima_s64_t chunk_size;
 	unsigned chunk_type;
