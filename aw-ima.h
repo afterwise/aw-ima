@@ -367,7 +367,8 @@ static int ima_parse(struct ima_info *info, const void *data) {
 	info->frame_count = ima_btoh64(pakt->frame_count);
 	info->channel_count = ima_btoh32(desc->channels_per_frame);
 
-	conv64.u = ima_btoh64(*(const ima_u64_t *) &desc->sample_rate);
+	conv64.u = desc->sample_rate;
+	conv64.u = ima_btoh64(*(const ima_u64_t *) &conv64.u);
 	info->sample_rate = conv64.f;
 
 	return 0;
