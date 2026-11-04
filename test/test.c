@@ -119,7 +119,7 @@ static void play() {
 int main(int argc, char *argv[]) {
 	uint32_t wav_buf[WAV_HEADER_SIZE / 4 + 1];
 	struct wav_info wav_info;
-	off_t file_end, data_off;
+	fs_off_t file_end, data_off;
 
 	char *caf = NULL;
 	char *wav = NULL;
