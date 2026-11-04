@@ -24,6 +24,7 @@
 #ifndef AW_IMA_H
 #define AW_IMA_H
 
+#include <stddef.h>
 #include <string.h>
 
 #if __GNUC__
@@ -375,8 +376,8 @@ static int ima_parse(struct ima_info *info, const void *data) {
 	if (info->channel_count == 0 || info->channel_count > IMA_MAX_CHANNELS)
 		return -4;
 
-	conv64.u = desc->sample_rate;
-	conv64.u = ima_btoh64(*(const ima_u64_t *) &conv64.u);
+	memcpy(&conv64.u, (const ima_u8_t *) desc + offsetof(struct caf_audio_description, sample_rate), sizeof conv64.u);
+	conv64.u = ima_btoh64(conv64.u);
 	info->sample_rate = conv64.f;
 
 	return 0;
