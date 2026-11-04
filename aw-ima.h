@@ -361,6 +361,9 @@ static int ima_parse(struct ima_info *info, const void *data) {
 		chunk = (const struct caf_chunk *) ((const ima_u8_t *) &chunk[1] + chunk_size);
 	}
 
+	if (desc == NULL || pakt == NULL)
+		return -5;
+
 	if (ima_btoh32(desc->format_id) != ima_fourcc('i', 'm', 'a', '4'))
 		return -3;
 
