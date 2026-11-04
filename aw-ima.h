@@ -27,27 +27,27 @@
 #include <stddef.h>
 #include <string.h>
 
-#if __GNUC__
+#if defined(__GNUC__)
 # define _ima_alwaysinline inline __attribute__((always_inline))
 # define _ima_unused __attribute__((__unused__))
-#elif _MSC_VER
+#elif defined(_MSC_VER)
 # define _ima_alwaysinline __forceinline
 # define _ima_unused
 #endif
 
-#if __GNUC__
+#if defined(__GNUC__)
 # define _ima_packed __attribute__((packed))
-#elif _MSC_VER
+#elif defined(_MSC_VER)
 # define _ima_packed
 #endif
 
-#if _MSC_VER
+#if defined(_MSC_VER)
 # define _ima_restrict __restrict
 #else
 # define _ima_restrict __restrict__
 #endif
 
-#if __GNUC__
+#if defined(__GNUC__)
 # define _ima_likely(x) __builtin_expect(!!(x), 1)
 # define _ima_unlikely(x) __builtin_expect(!!(x), 0)
 #else
@@ -69,7 +69,7 @@ typedef signed short ima_s16_t;
 typedef unsigned short ima_u16_t;
 typedef signed int ima_s32_t;
 typedef unsigned int ima_u32_t;
-#if _MSC_VER
+#if defined(_MSC_VER)
 typedef signed __int64 ima_s64_t;
 typedef unsigned __int64 ima_u64_t;
 #else
@@ -110,7 +110,7 @@ struct ima_decode_state {
 		memset((decode_state), 0, sizeof (struct ima_decode_state)); \
 	} while (0)
 
-#if _MSC_VER
+#if defined(_MSC_VER)
 # pragma pack(push, 1)
 #endif
 
@@ -153,7 +153,7 @@ struct _ima_packed ima_block {
 	ima_u8_t data[IMA_BLOCK_DATA_SIZE];
 };
 
-#if _MSC_VER
+#if defined(_MSC_VER)
 # pragma pack(pop)
 #endif
 
@@ -183,7 +183,7 @@ static _ima_alwaysinline ima_u64_t ima_bswap64(ima_u64_t v) {
                 (v >> 0x38 & 0x00000000000000ffull);
 }
 
-#if __BIG_ENDIAN__ || __ARMEB__
+#if defined(__BIG_ENDIAN__) || defined(__ARMEB__)
 static _ima_alwaysinline ima_u16_t ima_btoh16(ima_u16_t v) { return v; }
 static _ima_alwaysinline ima_u32_t ima_btoh32(ima_u32_t v) { return v; }
 static _ima_alwaysinline ima_u64_t ima_btoh64(ima_u64_t v) { return v; }
