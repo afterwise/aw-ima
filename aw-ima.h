@@ -308,6 +308,9 @@ static void ima_decode(
 	ima_u64_t remain_count, decode_count;
 	unsigned i;
 
+	if (_ima_unlikely(channel_count > IMA_MAX_CHANNELS))
+		return;
+
 	remain_count = frame_count;
 
 	blocks = (const struct ima_block *) data;
