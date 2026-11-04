@@ -268,7 +268,7 @@ static _ima_alwaysinline void ima_decode_block(
 	int index, predict, step, diff, nibble;
 	ima_u64_t i;
 
-	index = ima_btoh16(block->preamble) & 0x7f;
+	index = ima_clamp_index(ima_btoh16(block->preamble) & 0x7f);
 	predict = (ima_s16_t) ima_btoh16(block->preamble) & ~0x7f;
 
 	if (index == state->index) {
