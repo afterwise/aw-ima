@@ -343,7 +343,7 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 	const struct caf_packet_table *pakt = NULL;
 	const struct ima_block *blocks = NULL;
 	union { ima_f64_t f; ima_u64_t u; } conv64;
-	ima_u64_t remain, block_count;
+	ima_u64_t remain, block_count, data_size = 0;
 	ima_s64_t chunk_size;
 	unsigned chunk_type;
 
@@ -360,7 +360,7 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 		remain = (ima_u64_t) (end - ptr);
 
 		if (remain < sizeof (struct caf_chunk))
-			return -7;
+			break;
 
 		chunk = (const struct caf_chunk *) ptr;
 		chunk_type = ima_btoh32(chunk->type);
@@ -388,11 +388,14 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 			if ((ima_u64_t) chunk_size < sizeof (struct caf_data))
 				return -6;
 			blocks = (const struct ima_block *) (ptr + sizeof (struct caf_data));
-			break;
+			data_size = (ima_u64_t) chunk_size - sizeof (struct caf_data);
 		}
 
 		ptr += chunk_size;
 	}
+
+	if (blocks == NULL)
+		return -7;
 
 	if (desc == NULL || pakt == NULL)
 		return -5;
@@ -401,7 +404,7 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 		return -3;
 
 	info->blocks = blocks;
-	info->size = (ima_u64_t) chunk_size - sizeof (struct caf_data);
+	info->size = data_size;
 	info->frame_count = ima_btoh64(pakt->frame_count);
 	info->channel_count = ima_btoh32(desc->channels_per_frame);
 
