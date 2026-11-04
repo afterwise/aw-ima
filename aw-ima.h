@@ -99,8 +99,10 @@ struct ima_channel_state {
 	ima_s32_t predict;
 };
 
+#define IMA_MAX_CHANNELS (8)
+
 struct ima_decode_state {
-	struct ima_channel_state channels[8];
+	struct ima_channel_state channels[IMA_MAX_CHANNELS];
 };
 
 #define ima_init(decode_state) do { \
@@ -366,6 +368,9 @@ static int ima_parse(struct ima_info *info, const void *data) {
 	info->size = chunk_size;
 	info->frame_count = ima_btoh64(pakt->frame_count);
 	info->channel_count = ima_btoh32(desc->channels_per_frame);
+
+	if (info->channel_count == 0 || info->channel_count > IMA_MAX_CHANNELS)
+		return -4;
 
 	conv64.u = desc->sample_rate;
 	conv64.u = ima_btoh64(*(const ima_u64_t *) &conv64.u);
