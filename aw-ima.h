@@ -83,7 +83,7 @@ typedef double ima_f64_t;
 # define IMA_OUTPUT_SAMPLE(x) ((ima_f32_t) (x) * 0.0000305185f) /* 1.0 / 32767.0 */
 typedef ima_f32_t ima_output_t;
 #else
-# define IMA_OUTPUT_SAMPLE(x) (x)
+# define IMA_OUTPUT_SAMPLE(x) ((ima_s16_t) (x))
 typedef ima_s16_t ima_output_t;
 #endif
 
