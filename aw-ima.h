@@ -296,6 +296,7 @@ static _ima_alwaysinline void ima_decode_block(
 	state->predict = predict;
 }
 
+/* frame_offset + frame_count must not exceed the frame_count reported by ima_parse */
 static void ima_decode(
 		ima_output_t *_ima_restrict output, ima_u64_t frame_offset, ima_u64_t frame_count,
 		const void *data, unsigned channel_count,
@@ -332,16 +333,22 @@ static void ima_decode(
 	}
 }
 
-static int ima_parse(struct ima_info *info, const void *data) _ima_unused;
-static int ima_parse(struct ima_info *info, const void *data) {
+static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) _ima_unused;
+static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 	const struct caf_header *header = (const struct caf_header *) data;
-	const struct caf_chunk *chunk = (const struct caf_chunk *) &header[1];
+	const ima_u8_t *ptr = (const ima_u8_t *) &header[1];
+	const ima_u8_t *end = (const ima_u8_t *) data + size;
+	const struct caf_chunk *chunk;
 	const struct caf_audio_description *desc = NULL;
 	const struct caf_packet_table *pakt = NULL;
 	const struct ima_block *blocks = NULL;
 	union { ima_f64_t f; ima_u64_t u; } conv64;
+	ima_u64_t remain, block_count;
 	ima_s64_t chunk_size;
 	unsigned chunk_type;
+
+	if (size < sizeof (struct caf_header))
+		return -1;
 
 	if (ima_btoh32(header->type) != ima_fourcc('c', 'a', 'f', 'f'))
 		return -1;
@@ -350,19 +357,41 @@ static int ima_parse(struct ima_info *info, const void *data) {
 		return -2;
 
 	for (;;) {
+		remain = (ima_u64_t) (end - ptr);
+
+		if (remain < sizeof (struct caf_chunk))
+			return -7;
+
+		chunk = (const struct caf_chunk *) ptr;
 		chunk_type = ima_btoh32(chunk->type);
 		chunk_size = ima_btoh64(chunk->size);
 
-		if (chunk_type == ima_fourcc('d', 'e', 's', 'c'))
-			desc = (const struct caf_audio_description *) &chunk[1];
-		else if (chunk_type == ima_fourcc('p', 'a', 'k', 't'))
-			pakt = (const struct caf_packet_table *) &chunk[1];
-		else if (chunk_type == ima_fourcc('d', 'a', 't', 'a')) {
-			blocks = (const struct ima_block *) &((const struct caf_data *) &chunk[1])[1];
+		ptr += sizeof (struct caf_chunk);
+		remain -= sizeof (struct caf_chunk);
+
+		/* a data chunk of size -1 extends to the end of the file */
+		if (chunk_type == ima_fourcc('d', 'a', 't', 'a') && chunk_size == -1)
+			chunk_size = (ima_s64_t) remain;
+
+		if (chunk_size < 0 || (ima_u64_t) chunk_size > remain)
+			return -6;
+
+		if (chunk_type == ima_fourcc('d', 'e', 's', 'c')) {
+			if ((ima_u64_t) chunk_size < sizeof (struct caf_audio_description))
+				return -6;
+			desc = (const struct caf_audio_description *) ptr;
+		} else if (chunk_type == ima_fourcc('p', 'a', 'k', 't')) {
+			if ((ima_u64_t) chunk_size < sizeof (struct caf_packet_table))
+				return -6;
+			pakt = (const struct caf_packet_table *) ptr;
+		} else if (chunk_type == ima_fourcc('d', 'a', 't', 'a')) {
+			if ((ima_u64_t) chunk_size < sizeof (struct caf_data))
+				return -6;
+			blocks = (const struct ima_block *) (ptr + sizeof (struct caf_data));
 			break;
 		}
 
-		chunk = (const struct caf_chunk *) ((const ima_u8_t *) &chunk[1] + chunk_size);
+		ptr += chunk_size;
 	}
 
 	if (desc == NULL || pakt == NULL)
@@ -378,6 +407,17 @@ static int ima_parse(struct ima_info *info, const void *data) {
 
 	if (info->channel_count == 0 || info->channel_count > IMA_MAX_CHANNELS)
 		return -4;
+
+	if (ima_btoh32(desc->frames_per_packet) != IMA_BLOCK_DATA_SIZE * 2 ||
+			ima_btoh32(desc->bytes_per_packet) != sizeof (struct ima_block) * info->channel_count)
+		return -3;
+
+	block_count = ((ima_u64_t) chunk_size - sizeof (struct caf_data)) /
+		(sizeof (struct ima_block) * info->channel_count);
+
+	if (info->frame_count / (IMA_BLOCK_DATA_SIZE * 2) +
+			(info->frame_count % (IMA_BLOCK_DATA_SIZE * 2) != 0) > block_count)
+		return -8;
 
 	memcpy(&conv64.u, (const ima_u8_t *) desc + offsetof(struct caf_audio_description, sample_rate), sizeof conv64.u);
 	conv64.u = ima_btoh64(conv64.u);

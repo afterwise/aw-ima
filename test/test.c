@@ -26,7 +26,7 @@ static int load(const char *path) {
 
 	ptr = fs_map(&map, path);
 
-	if ((err = ima_parse(&ima_info, ptr)) < 0)
+	if ((err = ima_parse(&ima_info, ptr, map.size)) < 0)
 		return fprintf(stderr, "Parse failed: %d\n", err), -1;
 
 	return 0;
