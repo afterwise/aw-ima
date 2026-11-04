@@ -401,7 +401,7 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 		return -3;
 
 	info->blocks = blocks;
-	info->size = chunk_size;
+	info->size = (ima_u64_t) chunk_size - sizeof (struct caf_data);
 	info->frame_count = ima_btoh64(pakt->frame_count);
 	info->channel_count = ima_btoh32(desc->channels_per_frame);
 
@@ -412,8 +412,7 @@ static int ima_parse(struct ima_info *info, const void *data, ima_u64_t size) {
 			ima_btoh32(desc->bytes_per_packet) != sizeof (struct ima_block) * info->channel_count)
 		return -3;
 
-	block_count = ((ima_u64_t) chunk_size - sizeof (struct caf_data)) /
-		(sizeof (struct ima_block) * info->channel_count);
+	block_count = info->size / (sizeof (struct ima_block) * info->channel_count);
 
 	if (info->frame_count / (IMA_BLOCK_DATA_SIZE * 2) +
 			(info->frame_count % (IMA_BLOCK_DATA_SIZE * 2) != 0) > block_count)
